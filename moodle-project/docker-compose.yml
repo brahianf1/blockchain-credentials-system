@@ -1,0 +1,52 @@
+services:
+  moodle-app:
+    image: bitnami/moodle:4.3.5
+    container_name: moodle-app-windows
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+    environment:
+      MOODLE_DATABASE_TYPE: pgsql
+      MOODLE_DATABASE_HOST: moodle-db
+      MOODLE_DATABASE_PORT_NUMBER: 5432
+      MOODLE_DATABASE_NAME: moodle
+      MOODLE_DATABASE_USER: moodle_user
+      MOODLE_DATABASE_PASSWORD: secure_password
+      MOODLE_USERNAME: admin
+      MOODLE_PASSWORD: Admin123!
+      MOODLE_EMAIL: admin@localhost.local
+      MOODLE_SITE_NAME: "Moodle Híbrido"
+      MOODLE_SKIP_BOOTSTRAP: 'no'
+    volumes:
+      - moodle_data:/bitnami/moodledata
+    depends_on:
+      - moodle-db
+    networks:
+      - moodle-network
+    restart: unless-stopped
+
+  moodle-db:
+    image: postgres:15-alpine
+    container_name: moodle-db-windows
+    environment:
+      POSTGRES_DB: moodle
+      POSTGRES_USER: moodle_user
+      POSTGRES_PASSWORD: secure_password
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --lc-collate=C --lc-ctype=C'
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - moodle-network
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+
+networks:
+  moodle-network:
+    driver: bridge
+
+volumes:
+  db_data:
+    driver: local
+  moodle_data:
+    driver: local

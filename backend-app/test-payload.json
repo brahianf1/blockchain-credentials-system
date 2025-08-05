@@ -1,0 +1,10 @@
+{
+  "student_id": "test_student",
+  "student_name": "Juan Perez",
+  "student_email": "juan@universidad.edu",
+  "course_id": "CS101",
+  "course_name": "Introducción a Informática",
+  "completion_date": "2025-08-03",
+  "grade": "A",
+  "instructor_name": "Prof. García"
+}

@@ -1,0 +1,27 @@
+# Controller Python - Integración Moodle + ACA-Py + Fabric
+fastapi
+uvicorn[standard]
+pydantic
+httpx
+python-multipart
+
+# Fabric SDK y criptografía (usando requests para APIs REST)
+cryptography
+ecdsa
+grpcio
+protobuf
+
+# Utilidades
+qrcode[pil]
+python-jose[cryptography]
+python-dotenv
+requests
+aiofiles
+
+# Logging y monitoreo
+structlog
+colorama
+
+# Base de datos (opcional para persistencia)
+sqlalchemy
+alembic

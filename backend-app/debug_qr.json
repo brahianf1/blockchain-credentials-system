@@ -1,0 +1,10 @@
+{
+  "usuarioId": "debug001",
+  "usuarioNombre": "QR Debug Test",
+  "usuarioEmail": "debug@test.com",
+  "cursoId": "999",
+  "cursoNombre": "Debug QR Course",
+  "fechaFinalizacion": "2025-08-03T12:45:00",
+  "calificacion": "Test",
+  "instructor": "Debug"
+}

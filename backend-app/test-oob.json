@@ -1,0 +1,4 @@
+{
+  "handshake_protocols": ["https://didcomm.org/didexchange/1.0"],
+  "alias": "Test"
+}

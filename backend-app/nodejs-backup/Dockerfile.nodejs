@@ -1,0 +1,29 @@
+# Usa una imagen oficial de Node.js 18 con Alpine para ligereza
+FROM node:18-alpine
+
+# Instala herramientas de compilación necesarias para Credo y dependencias nativas
+# 'apk' es el gestor de paquetes de Alpine Linux
+RUN apk add --no-cache \
+    build-base \
+    python3 \
+    g++ \
+    make \
+    git
+
+# Establece el directorio de trabajo en el contenedor
+WORKDIR /usr/src/app
+
+# Copia archivos de dependencias
+COPY package*.json ./
+
+# Instala dependencias
+RUN npm install
+
+# Copia el resto del código
+COPY . .
+
+# Expone el puerto para recibir conexiones del agente Credo
+EXPOSE 3000
+
+# Comando para iniciar el backend
+CMD ["node", "server.js"]
