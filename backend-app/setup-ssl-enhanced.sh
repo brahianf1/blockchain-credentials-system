@@ -161,7 +161,8 @@ server {
 
 # Configuración HTTPS principal
 server {
-    listen 443 ssl http2;
+    listen 443 ssl;
+    http2 on;
     server_name utnpf.site;
     
     # Certificados SSL
@@ -253,7 +254,7 @@ server {
     client_max_body_size 10M;
 }
 
-# Configuración global
+# Configuración global Nginx
 server_tokens off;
 EOF
 
