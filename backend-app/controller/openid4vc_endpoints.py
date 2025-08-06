@@ -124,13 +124,14 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
         # Almacenar datos pendientes (usa tu sistema actual de almacenamiento temporal)
         await store_pending_openid_credential(pre_auth_code, request.dict())
         
-        # Crear Credential Offer según spec OpenID4VCI (simplificado para Lissi)
+        # Crear Credential Offer según OpenID4VCI Draft-16 (formato estándar para Lissi)
         offer = {
             "credential_issuer": ISSUER_URL,
             "credential_configuration_ids": ["UniversityCredential"],
             "grants": {
                 "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
-                    "pre-authorized_code": pre_auth_code
+                    "pre-authorized_code": pre_auth_code,
+                    "user_pin_required": False
                 }
             }
         }
