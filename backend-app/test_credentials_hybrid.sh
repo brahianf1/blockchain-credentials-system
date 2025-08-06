@@ -23,7 +23,7 @@ echo "📡 === PROBANDO DIDCOMM (Sistema actual) ==="
 echo "Compatible con: ACA-Py wallets, Credo"
 echo ""
 
-DIDCOMM_RESPONSE=$(curl -s -X POST http://localhost:3000/api/credential/request \
+DIDCOMM_RESPONSE=$(curl -s -X POST http://209.38.151.153:3000/api/credential/request \
   -H "Content-Type: application/json" \
   -d "$TEST_DATA")
 
@@ -59,7 +59,7 @@ OPENID4VC_DATA='{
   "grade": "A+"
 }'
 
-OPENID4VC_RESPONSE=$(curl -s -X POST http://localhost:3000/oid4vc/credential-offer \
+OPENID4VC_RESPONSE=$(curl -s -X POST http://209.38.151.153:3000/oid4vc/credential-offer \
   -H "Content-Type: application/json" \
   -d "$OPENID4VC_DATA")
 

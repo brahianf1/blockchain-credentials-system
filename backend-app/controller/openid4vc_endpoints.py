@@ -23,7 +23,7 @@ logger = structlog.get_logger()
 oid4vc_router = APIRouter(prefix="/oid4vc", tags=["OpenID4VC"])
 
 # Configuración - VPS Digital Ocean  
-ISSUER_URL = "http://209.38.151.153"  # Tu VPS Real
+ISSUER_URL = "http://209.38.151.153:3000"  # Tu VPS Real con puerto
 ISSUER_BASE_URL = f"{ISSUER_URL}/oid4vc"
 PRIVATE_KEY = """-----BEGIN PRIVATE KEY-----
 MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgK7ZB1X2QR3vN8YPf
