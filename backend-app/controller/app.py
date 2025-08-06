@@ -23,6 +23,14 @@ import structlog
 from fabric_client import FabricClient
 from qr_generator import QRGenerator
 
+# NUEVO: Import OpenID4VC endpoints
+try:
+    from openid4vc_endpoints import oid4vc_router
+    OPENID4VC_AVAILABLE = True
+except ImportError:
+    OPENID4VC_AVAILABLE = False
+    logger.warning("⚠️ OpenID4VC endpoints no disponibles - instalar dependencias")
+
 # Configuración de logging estructurado
 logging.basicConfig(level=logging.INFO)
 logger = structlog.get_logger()
@@ -38,9 +46,16 @@ qr_storage: Dict[str, Dict[str, str]] = {}
 # Configuración FastAPI
 app = FastAPI(
     title="Universidad - Sistema de Credenciales W3C",
-    description="Emisor REAL de Credenciales Verificables - Integración Moodle + ACA-Py + Hyperledger Fabric",
-    version="1.0.0"
+    description="Emisor REAL de Credenciales Verificables - Integración Moodle + ACA-Py + Hyperledger Fabric + OpenID4VC",
+    version="2.0.0"  # Incrementar versión
 )
+
+# NUEVO: Incluir router OpenID4VC si está disponible
+if OPENID4VC_AVAILABLE:
+    app.include_router(oid4vc_router)
+    logger.info("✅ OpenID4VC endpoints habilitados para wallets modernas (Lissi, etc.)")
+else:
+    logger.warning("⚠️ Solo DIDComm disponible - considera instalar dependencias OpenID4VC")
 
 # CORS para Moodle
 app.add_middleware(
