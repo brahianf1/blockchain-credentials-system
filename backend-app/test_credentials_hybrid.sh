@@ -96,7 +96,7 @@ OPENID4VC_DATA='{
 echo "🔍 Verificando endpoints OpenID4VC..."
 METADATA_CHECK=$(curl -s https://utnpf.site/oid4vc/.well-known/openid-credential-issuer)
 
-if echo "$METADATA_CHECK" | jq -e '.issuer' > /dev/null 2>&1; then
+if echo "$METADATA_CHECK" | jq -e '.credential_issuer' > /dev/null 2>&1; then
     echo "✅ Metadata OpenID4VC disponible"
     
     # Probar crear credential offer (endpoint correcto)
