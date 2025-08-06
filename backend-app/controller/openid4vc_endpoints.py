@@ -86,28 +86,6 @@ async def credential_issuer_metadata():
         }
     }
 
-# ENDPOINT 2.5: Credential Offer URI (para QR con referencia)
-@oid4vc_router.get("/credential-offer-uri/{pre_auth_code}")
-async def get_credential_offer_by_uri(pre_auth_code: str):
-    """
-    Servir credential offer desde URI para compatibilidad con Lissi Wallet
-    """
-    try:
-        global credential_offers
-        if 'credential_offers' not in globals():
-            credential_offers = {}
-            
-        if pre_auth_code not in credential_offers:
-            raise HTTPException(status_code=404, detail="Credential offer no encontrado")
-        
-        return credential_offers[pre_auth_code]
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Error obteniendo credential offer: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 # ENDPOINT 2: Crear Credential Offer compatible con Lissi
 @oid4vc_router.post("/credential-offer")
 async def create_openid_credential_offer(request: CredentialOfferRequest):
@@ -124,18 +102,14 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
         # Almacenar datos pendientes (usa tu sistema actual de almacenamiento temporal)
         await store_pending_openid_credential(pre_auth_code, request.dict())
         
-        # Crear Credential Offer según OpenID4VCI Draft-16 (formato estándar para Lissi)
+        # Crear Credential Offer según OpenID4VCI Draft-16 (formato estricto para Lissi)
         offer = {
             "credential_issuer": ISSUER_URL,
             "credential_configuration_ids": ["UniversityCredential"],
             "grants": {
                 "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
-                    "pre-authorized_code": pre_auth_code,
-                    "tx_code": {
-                        "input_mode": "text",
-                        "length": 0,
-                        "description": "No transaction code required"
-                    }
+                    "pre-authorized_code": pre_auth_code
+                    # tx_code se omite completamente cuando no se requiere
                 }
             }
         }
@@ -144,8 +118,10 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
         offer_json = json.dumps(offer)
         encoded_offer = base64.urlsafe_b64encode(offer_json.encode()).decode()
         
-        # QR URL compatible con Lissi Wallet (formato correcto)
-        qr_url = f"openid-credential-offer://?credential_offer_uri={ISSUER_URL}/oid4vc/credential-offer-uri/{pre_auth_code}"
+        # Codificar offer directamente en el QR (formato OpenID4VCI Draft-16 para Lissi)
+        from urllib.parse import quote
+        offer_encoded = quote(json.dumps(offer))
+        qr_url = f"openid-credential-offer://?credential_offer={offer_encoded}"
         
         # Generar QR usando tu QRGenerator existente
         from qr_generator import QRGenerator
@@ -158,12 +134,7 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
         else:
             qr_code_base64 = qr_code_full
         
-        # Almacenar offer para el endpoint de URL
-        global credential_offers
-        if 'credential_offers' not in globals():
-            credential_offers = {}
-        
-        credential_offers[pre_auth_code] = offer
+        # Almacenar solo para la página web de display
         global qr_storage
         if 'qr_storage' not in globals():
             qr_storage = {}
@@ -209,8 +180,8 @@ async def token_endpoint(
         if not credential_data:
             raise HTTPException(status_code=400, detail="pre-authorized_code inválido")
         
-        # Para tx_code vacío o no requerido, aceptar cualquier valor o la ausencia del mismo
-        # En producción, aquí validarías el tx_code si es requerido
+        # Para este flujo sin tx_code requerido, aceptamos cualquier valor o ausencia
+        # En producción, aquí validarías el tx_code si es requerido según la configuración
         
         # Generar access token
         access_token = jwt.encode({
