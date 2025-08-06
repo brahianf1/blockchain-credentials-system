@@ -134,7 +134,13 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
         # Generar QR usando tu QRGenerator existente
         from qr_generator import QRGenerator
         qr_gen = QRGenerator()
-        qr_code_base64 = qr_gen.generate_qr(qr_url)
+        qr_code_full = qr_gen.generate_qr(qr_url)
+        
+        # Extraer solo el base64 (QRGenerator devuelve "data:image/png;base64,{base64}")
+        if qr_code_full.startswith("data:image/png;base64,"):
+            qr_code_base64 = qr_code_full.split(",", 1)[1]
+        else:
+            qr_code_base64 = qr_code_full
         
         # Almacenar en storage temporal para página web (igual que DIDComm)
         global qr_storage
