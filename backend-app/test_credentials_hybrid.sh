@@ -34,7 +34,7 @@ if echo "$DIDCOMM_RESPONSE" | jq -e '.connection_id' > /dev/null; then
     CONNECTION_ID=$(echo "$DIDCOMM_RESPONSE" | jq -r '.connection_id')
     echo ""
     echo "✅ DIDComm funcionando!"
-    echo "📱 QR DIDComm: http://209.38.151.153:3000/qr/$CONNECTION_ID"
+    echo "📱 Página web QR DIDComm: http://209.38.151.153:3000/qr/$CONNECTION_ID"
     echo "⚠️  LIMITACIÓN: No compatible con Lissi Wallet"
 else
     echo "❌ Error en DIDComm"
@@ -67,15 +67,18 @@ echo "Response OpenID4VC:"
 echo "$OPENID4VC_RESPONSE" | jq .
 
 if echo "$OPENID4VC_RESPONSE" | jq -e '.qr_url' > /dev/null; then
+    PRE_AUTH_CODE=$(echo "$OPENID4VC_RESPONSE" | jq -r '.pre_authorized_code')
+    WEB_QR_URL=$(echo "$OPENID4VC_RESPONSE" | jq -r '.web_qr_url')
     echo ""
-    echo "✅ OpenID4VC funcionando!"
-    echo "📱 QR compatible con Lissi Wallet generado!"
-    echo "🔗 URL: $(echo "$OPENID4VC_RESPONSE" | jq -r '.qr_url' | head -c 80)..."
-    echo "🔑 Pre-authorized Code: $(echo "$OPENID4VC_RESPONSE" | jq -r '.pre_authorized_code')"
+    echo "🎉 OpenID4VC funcionando!"
+    echo "📱 Página web QR OpenID4VC: $WEB_QR_URL"
+    echo "🆕 COMPATIBLE con Lissi Wallet y wallets modernas"
+    echo "🔑 Pre-authorized Code: $PRE_AUTH_CODE"
 else
     echo "❌ Error en OpenID4VC"
 fi
 
+echo ""
 echo ""
 echo "🎯 === RESUMEN ==="
 echo "✅ DIDComm: Para compatibilidad con wallets existentes"
@@ -83,6 +86,11 @@ echo "✅ OpenID4VC: Para Lissi Wallet y wallets modernas"
 echo "🎉 Tu sistema ahora es compatible con ambos protocolos!"
 echo ""
 echo "📱 PARA PROBAR CON LISSI WALLET:"
-echo "   1. Instala Lissi Wallet en tu móvil"
-echo "   2. Usa el QR de OpenID4VC (no el de DIDComm)"
-echo "   3. ¡Escanea y recibe tu credencial W3C!"
+echo "   1. Abre la página web QR de OpenID4VC (URL mostrada arriba)"
+echo "   2. Escanea el QR con Lissi Wallet"
+echo "   3. Acepta la credencial en tu wallet"
+echo ""
+echo "📱 PARA PROBAR CON WALLETS DIDCOMM:"
+echo "   1. Abre la página web QR de DIDComm (URL mostrada arriba)"
+echo "   2. Escanea el QR con tu wallet DIDComm"
+echo "   3. Completa el intercambio de credenciales"

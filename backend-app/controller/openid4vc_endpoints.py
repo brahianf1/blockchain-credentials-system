@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Header
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 import httpx
 import structlog
@@ -135,6 +136,20 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
         qr_gen = QRGenerator()
         qr_code_base64 = qr_gen.generate_qr(qr_url)
         
+        # Almacenar en storage temporal para página web (igual que DIDComm)
+        global qr_storage
+        if 'qr_storage' not in globals():
+            qr_storage = {}
+        
+        qr_storage[pre_auth_code] = {
+            "qr_code_base64": qr_code_base64,
+            "qr_url": qr_url,
+            "student_name": request.student_name,
+            "course_name": request.course_name,
+            "timestamp": datetime.now().isoformat(),
+            "type": "openid4vc"
+        }
+        
         logger.info(f"✅ Credential Offer OpenID4VC creado: {pre_auth_code}")
         
         return {
@@ -142,6 +157,7 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
             "qr_code_base64": qr_code_base64,
             "pre_authorized_code": pre_auth_code,
             "offer": offer,
+            "web_qr_url": f"{ISSUER_URL}/oid4vc/qr/{pre_auth_code}",
             "instructions": "Escanea con Lissi Wallet u otra wallet OpenID4VC compatible"
         }
         
@@ -284,3 +300,134 @@ async def clear_pending_openid_credential(code: str):
         os.remove(temp_file)
     except:
         pass
+
+# ==================== ENDPOINT PARA MOSTRAR QR OPENID4VC ====================
+
+@oid4vc_router.get("/qr/{pre_auth_code}", response_class=HTMLResponse)
+async def show_openid_qr_page(pre_auth_code: str):
+    """
+    Mostrar página HTML con QR Code OpenID4VC compatible con Lissi Wallet
+    Similar a tu endpoint /qr/{connection_id} pero para OpenID4VC
+    """
+    try:
+        # Buscar QR en storage temporal
+        global qr_storage
+        if 'qr_storage' not in globals():
+            qr_storage = {}
+            
+        if pre_auth_code not in qr_storage:
+            raise HTTPException(status_code=404, detail="QR Code OpenID4VC no encontrado o expirado")
+        
+        qr_data = qr_storage[pre_auth_code]
+        
+        # Página HTML específica para OpenID4VC
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Credencial W3C OpenID4VC - Compatible con Lissi Wallet</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    margin: 0;
+                    padding: 20px;
+                    min-height: 100vh;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                }}
+                .container {{
+                    background: white;
+                    border-radius: 20px;
+                    padding: 40px;
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+                    text-align: center;
+                    max-width: 500px;
+                    width: 100%;
+                }}
+                .protocol-badge {{
+                    background: #4CAF50;
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 20px;
+                    font-size: 0.9em;
+                    margin-bottom: 20px;
+                    display: inline-block;
+                }}
+                .qr-container {{
+                    background: #f8f9fa;
+                    border-radius: 15px;
+                    padding: 20px;
+                    margin: 20px 0;
+                    border: 3px solid #4CAF50;
+                }}
+                .qr-code {{
+                    max-width: 280px;
+                    width: 100%;
+                    height: auto;
+                }}
+                .course-info {{
+                    background: #e8f5e8;
+                    border-radius: 10px;
+                    padding: 15px;
+                    margin: 20px 0;
+                    border-left: 4px solid #4CAF50;
+                }}
+                .student-name {{
+                    font-weight: bold;
+                    color: #2e7d32;
+                    font-size: 1.2em;
+                }}
+                .instructions {{
+                    background: #fff3e0;
+                    border-radius: 10px;
+                    padding: 15px;
+                    margin: 20px 0;
+                    border-left: 4px solid #ff9800;
+                }}
+                .compatible {{
+                    color: #4CAF50;
+                    font-weight: bold;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>🎓 Credencial Universitaria</h1>
+                <div class="protocol-badge">OpenID4VC Compatible</div>
+                
+                <div class="course-info">
+                    <div class="student-name">{qr_data.get('student_name', 'Estudiante')}</div>
+                    <div>{qr_data.get('course_name', 'Curso')}</div>
+                </div>
+                
+                <div class="qr-container">
+                    <img src="data:image/png;base64,{qr_data['qr_code_base64']}" 
+                         alt="QR Code OpenID4VC" class="qr-code">
+                </div>
+                
+                <div class="instructions">
+                    <h3>📱 Compatible con Lissi Wallet</h3>
+                    <p><strong>Instrucciones:</strong></p>
+                    <ol style="text-align: left;">
+                        <li>Abre Lissi Wallet en tu móvil</li>
+                        <li>Escanea este código QR</li>
+                        <li>¡Recibe tu credencial W3C!</li>
+                    </ol>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return HTMLResponse(content=html_content)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error mostrando QR OpenID4VC: {e}")
+        raise HTTPException(status_code=500, detail=f"Error mostrando QR: {str(e)}")
