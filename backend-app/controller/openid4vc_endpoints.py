@@ -131,7 +131,11 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
             "grants": {
                 "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
                     "pre-authorized_code": pre_auth_code,
-                    "user_pin_required": False
+                    "tx_code": {
+                        "input_mode": "text",
+                        "length": 0,
+                        "description": "No transaction code required"
+                    }
                 }
             }
         }
@@ -205,7 +209,8 @@ async def token_endpoint(
         if not credential_data:
             raise HTTPException(status_code=400, detail="pre-authorized_code inválido")
         
-        # Por simplicidad, omitir validación de tx_code (implementar según necesidades)
+        # Para tx_code vacío o no requerido, aceptar cualquier valor o la ausencia del mismo
+        # En producción, aquí validarías el tx_code si es requerido
         
         # Generar access token
         access_token = jwt.encode({
