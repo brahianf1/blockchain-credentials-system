@@ -21,8 +21,9 @@ services:
       - "0.0.0.0"
       - "8020"
       - --admin-insecure-mode
+      # NOTA: Cambiar a https://utnpf.site cuando configuremos SSL + Nginx proxy
       - --endpoint
-      - http://172.26.155.211:8021
+      - http://utnpf.site:8021  # HTTP temporal hasta SSL
       - --inbound-transport
       - http
       - "0.0.0.0"

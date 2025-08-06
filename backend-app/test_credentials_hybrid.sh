@@ -3,7 +3,7 @@
 # Compatible con VPS y Lissi Wallet
 
 echo "🎯 === SISTEMA DE CREDENCIALES HÍBRIDO ==="
-echo "🌐 VPS: http://209.38.151.153:3000"
+echo "🌐 VPS: http://utnpf.site:3000"
 echo ""
 
 # Datos de prueba
@@ -23,7 +23,7 @@ echo "📡 === PROBANDO DIDCOMM (Sistema actual) ==="
 echo "Compatible con: ACA-Py wallets, Credo"
 echo ""
 
-DIDCOMM_RESPONSE=$(curl -s -X POST http://209.38.151.153:3000/api/credential/request \
+DIDCOMM_RESPONSE=$(curl -s -X POST http://utnpf.site:3000/api/credential/request \
   -H "Content-Type: application/json" \
   -d "$TEST_DATA")
 
@@ -34,7 +34,7 @@ if echo "$DIDCOMM_RESPONSE" | jq -e '.connection_id' > /dev/null; then
     CONNECTION_ID=$(echo "$DIDCOMM_RESPONSE" | jq -r '.connection_id')
     echo ""
     echo "✅ DIDComm funcionando!"
-    echo "📱 Página web QR DIDComm: http://209.38.151.153:3000/qr/$CONNECTION_ID"
+    echo "📱 Página web QR DIDComm: http://utnpf.site:3000/qr/$CONNECTION_ID"
     echo "⚠️  LIMITACIÓN: No compatible con Lissi Wallet"
 else
     echo "❌ Error en DIDComm"
@@ -59,7 +59,7 @@ OPENID4VC_DATA='{
   "grade": "A+"
 }'
 
-OPENID4VC_RESPONSE=$(curl -s -X POST http://209.38.151.153:3000/oid4vc/credential-offer \
+OPENID4VC_RESPONSE=$(curl -s -X POST http://utnpf.site:3000/oid4vc/credential-offer \
   -H "Content-Type: application/json" \
   -d "$OPENID4VC_DATA")
 

@@ -22,8 +22,10 @@ logger = structlog.get_logger()
 # Router para endpoints OpenID4VC
 oid4vc_router = APIRouter(prefix="/oid4vc", tags=["OpenID4VC"])
 
-# Configuración - VPS Digital Ocean  
-ISSUER_URL = "http://209.38.151.153:3000"  # Tu VPS Real con puerto
+# Configuración - VPS Digital Ocean con dominio utnpf.site
+# NOTA: Cambiará a HTTPS cuando configuremos SSL
+ISSUER_URL = "http://utnpf.site:3000"  # Dominio real funcionando
+# ISSUER_URL = "https://utnpf.site"  # Para cuando tengamos SSL
 ISSUER_BASE_URL = f"{ISSUER_URL}/oid4vc"
 PRIVATE_KEY = """-----BEGIN PRIVATE KEY-----
 MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgK7ZB1X2QR3vN8YPf
@@ -51,6 +53,7 @@ async def credential_issuer_metadata():
     return {
         "credential_issuer": ISSUER_URL,
         "credential_endpoint": f"{ISSUER_URL}/oid4vc/credential",
+        "token_endpoint": f"{ISSUER_URL}/oid4vc/token",
         "authorization_servers": [ISSUER_URL],
         "credential_configurations_supported": {
             "UniversityCredential": {
@@ -64,30 +67,22 @@ async def credential_issuer_metadata():
                     "name": "Credencial Universitaria",
                     "locale": "es-ES",
                     "background_color": "#1976d2",
-                    "text_color": "#FFFFFF",
-                    "logo": {
-                        "uri": f"{ISSUER_URL}/logo.png",
-                        "alt_text": "Logo Universidad"
-                    }
+                    "text_color": "#FFFFFF"
                 }],
-                "claims": [
-                    {
-                        "path": ["credentialSubject", "student_name"],
+                "credential_subject": {
+                    "student_name": {
                         "display": [{"name": "Nombre del Estudiante", "locale": "es-ES"}]
                     },
-                    {
-                        "path": ["credentialSubject", "course_name"], 
+                    "course_name": {
                         "display": [{"name": "Curso", "locale": "es-ES"}]
                     },
-                    {
-                        "path": ["credentialSubject", "completion_date"],
+                    "completion_date": {
                         "display": [{"name": "Fecha de Finalización", "locale": "es-ES"}]
                     },
-                    {
-                        "path": ["credentialSubject", "grade"],
+                    "grade": {
                         "display": [{"name": "Calificación", "locale": "es-ES"}]
                     }
-                ]
+                }
             }
         }
     }
