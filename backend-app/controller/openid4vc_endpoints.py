@@ -22,10 +22,9 @@ logger = structlog.get_logger()
 # Router para endpoints OpenID4VC
 oid4vc_router = APIRouter(prefix="/oid4vc", tags=["OpenID4VC"])
 
-# Configuración - VPS Digital Ocean con dominio utnpf.site
-# NOTA: Cambiará a HTTPS cuando configuremos SSL
-ISSUER_URL = "http://utnpf.site:3000"  # Dominio real funcionando
-# ISSUER_URL = "https://utnpf.site"  # Para cuando tengamos SSL
+# Configuración - VPS Digital Ocean con SSL habilitado
+ISSUER_URL = "https://utnpf.site"  # Producción con SSL
+# ISSUER_URL = "http://utnpf.site:3000"  # Solo para desarrollo sin SSL
 ISSUER_BASE_URL = f"{ISSUER_URL}/oid4vc"
 PRIVATE_KEY = """-----BEGIN PRIVATE KEY-----
 MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgK7ZB1X2QR3vN8YPf
