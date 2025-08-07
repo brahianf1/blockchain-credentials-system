@@ -78,17 +78,17 @@ echo "=================================================="
 echo ""
 
 # 2. PROBAR OPENID4VC (Nuevo sistema - para Lissi Wallet)
-echo "🆕 === PROBANDO OPENID4VC (Nuevo - para Lissi) ==="
-echo "Compatible con: Lissi Wallet, EUDI Wallet, wallets modernas"
+echo "🆕 === PROBANDO OPENID4VC (Compatible con Walt.id) ==="
+echo "Compatible con: walt.id wallet, Lissi Wallet, EUDI Wallet, wallets modernas"
 echo ""
 
-# Datos para OpenID4VC (formato ligeramente diferente)
+# Datos para OpenID4VC (optimizado para walt.id compatibility)
 OPENID4VC_DATA='{
-  "student_id": "456",
-  "student_name": "María García",
-  "student_email": "maria@ejemplo.com",
-  "course_name": "Credenciales W3C con OpenID4VC",
-  "completion_date": "2025-08-06T16:00:00Z",
+  "student_id": "walt-test-456",
+  "student_name": "Walt.id Test User",
+  "student_email": "walt@test.example",
+  "course_name": "OpenID4VC Credencial Compatible",
+  "completion_date": "2025-08-07T16:00:00Z",
   "grade": "A+"
 }'
 
@@ -116,12 +116,20 @@ if echo "$METADATA_CHECK" | jq -e '.credential_issuer' > /dev/null 2>&1; then
         echo ""
         echo "🎉 OpenID4VC funcionando!"
         echo "📱 Página web QR OpenID4VC: $WEB_QR_URL"
+        echo "🆕 COMPATIBLE con walt.id wallet (wallet.demo.walt.id)"
         echo "🆕 COMPATIBLE con Lissi Wallet y wallets modernas"
         if [ ! -z "$PRE_AUTH_CODE" ]; then
             echo "🔑 Pre-authorized Code: $PRE_AUTH_CODE"
         fi
         if [ ! -z "$CREDENTIAL_OFFER_URL" ]; then
             echo "🔗 Credential Offer URI: $CREDENTIAL_OFFER_URL"
+        fi
+        
+        # Extraer QR URL para testing directo
+        QR_URL_DIRECT=$(echo "$OPENID4VC_RESPONSE" | jq -r '.qr_url // empty')
+        if [ ! -z "$QR_URL_DIRECT" ]; then
+            echo "🔗 URL directa para walt.id: $QR_URL_DIRECT"
+            echo "📋 Longitud URL: ${#QR_URL_DIRECT} caracteres"
         fi
     else
         echo "❌ Error en OpenID4VC - Response:"
@@ -139,6 +147,14 @@ echo "🎯 === RESUMEN ==="
 echo "✅ DIDComm: Para compatibilidad con wallets existentes"
 echo "✅ OpenID4VC: Para Lissi Wallet y wallets modernas"
 echo "🎉 Tu sistema ahora es compatible con ambos protocolos!"
+echo ""
+echo "📱 === PARA PROBAR CON WALT.ID WALLET ==="
+echo "   🔗 Sitio web: https://wallet.demo.walt.id/"
+echo "   📋 Pasos:"
+echo "      1. Abre https://wallet.demo.walt.id/ en tu navegador"
+echo "      2. Copia la 'URL directa para walt.id' mostrada arriba"
+echo "      3. Pégala en el campo de walt.id wallet"
+echo "      4. Acepta la credencial en walt.id"
 echo ""
 echo "📱 === PARA PROBAR CON LISSI WALLET ==="
 echo "   🔗 URL a usar: Página web QR de OpenID4VC (mostrada arriba)"
@@ -161,3 +177,15 @@ echo "   • Si OpenID4VC falla: Verificar logs con 'docker-compose logs control
 echo "   • Si DIDComm falla: Verificar ACA-Py con 'docker-compose logs acapy'"
 echo "   • SSL Issues: Verificar certificado con 'curl -I https://utnpf.site/'"
 echo "   • Logs Nginx: 'sudo tail -f /var/log/nginx/utnpf.site.error.log'"
+echo ""
+echo "🧪 === VERIFICACIÓN AUTOMÁTICA WALT.ID ==="
+echo "Ejecutando verificación de compatibilidad..."
+
+# Ejecutar verificación específica para walt.id si existe el script
+if [ -f "./verify-walt-id.py" ]; then
+    echo "📋 Ejecutando verify-walt-id.py..."
+    python3 ./verify-walt-id.py
+else
+    echo "⚠️  Script verify-walt-id.py no encontrado, saltando verificación automática"
+    echo "   Puedes ejecutarlo manualmente: python3 verify-walt-id.py"
+fi

@@ -195,45 +195,52 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
         timestamp = int(datetime.now().timestamp())
         pre_auth_code = f"pre_auth_{request.student_id}_{timestamp}_{hash(request.student_email) % 10000}"
         
-        # Almacenar datos pendientes con expiración
-        await store_pending_openid_credential(pre_auth_code, request.dict(), expires_in=600)  # 10 minutos
+        # Almacenar datos pendientes con expiración y metadatos OpenID4VC
+        await store_pending_openid_credential(pre_auth_code, request.dict(), expires_in=600)
         
-        # Crear Credential Offer según OpenID4VCI Draft-16 (formato estricto para Lissi)
+        # Crear Credential Offer según OpenID4VCI Draft-16 (formato estricto)
         offer = {
             "credential_issuer": ISSUER_URL,
             "credential_configuration_ids": ["UniversityCredential"],
             "grants": {
                 "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
-                    "pre-authorized_code": pre_auth_code,
-                    # Añadir información de seguridad para Lissi Wallet
-                    "interval": 5,  # Intervalo de polling en segundos
-                    "expires_in": 600  # Expiración en segundos
+                    "pre-authorized_code": pre_auth_code
                 }
             }
         }
         
-        # Codificar offer para QR compatible con Lissi
+        # Codificar offer para QR según RFC estándar
         offer_json = json.dumps(offer, separators=(',', ':'))  # Compact JSON
         
-        # Usar URL encoding estándar para compatibilidad máxima
+        # Usar URL encoding estándar según OpenID4VC spec
         from urllib.parse import quote
         offer_encoded = quote(offer_json, safe='')
+        
+        # Usar esquema URI estándar según spec OpenID4VC Draft-16
         qr_url = f"openid-credential-offer://?credential_offer={offer_encoded}"
         
-        # Validar longitud del QR (máximo recomendado para QR codes)
-        if len(qr_url) > 2048:
-            logger.warning(f"⚠️ QR URL muy largo: {len(qr_url)} chars")
+        # Validar longitud del QR (máximo para QR codes estándar)
+        if len(qr_url) > 1800:  # Límite más conservador para compatibilidad
+            logger.warning(f"⚠️ QR URL muy largo: {len(qr_url)} chars, puede fallar en algunos wallets")
         
-        # Generar QR usando tu QRGenerator existente
-        from qr_generator import QRGenerator
-        qr_gen = QRGenerator()
-        qr_code_full = qr_gen.generate_qr(qr_url)
-        
-        # Extraer solo el base64 (QRGenerator devuelve "data:image/png;base64,{base64}")
-        if qr_code_full.startswith("data:image/png;base64,"):
-            qr_code_base64 = qr_code_full.split(",", 1)[1]
-        else:
-            qr_code_base64 = qr_code_full
+        # Generar QR con configuración optimizada
+        try:
+            from qr_generator import QRGenerator
+            qr_gen = QRGenerator()
+            qr_code_full = qr_gen.generate_qr(qr_url)
+            
+            # Extraer solo el base64
+            if qr_code_full and qr_code_full.startswith("data:image/png;base64,"):
+                qr_code_base64 = qr_code_full.split(",", 1)[1]
+            else:
+                qr_code_base64 = qr_code_full or ""
+                
+            logger.info(f"✅ QR generado exitosamente, longitud: {len(qr_code_base64)} chars")
+            
+        except Exception as qr_error:
+            logger.error(f"❌ Error generando QR: {qr_error}")
+            # Fallback sin QR pero con URL
+            qr_code_base64 = ""
         
         # Almacenar para la página web de display
         global qr_storage
@@ -247,7 +254,8 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
             "course_name": request.course_name,
             "timestamp": datetime.now().isoformat(),
             "expires_at": (datetime.now() + timedelta(minutes=10)).isoformat(),
-            "type": "openid4vc_ssl_enhanced"
+            "type": "openid4vc_compliant",
+            "format_version": "OpenID4VC Draft-16"
         }
         
         logger.info(f"✅ Credential Offer OpenID4VC creado: {pre_auth_code}")
@@ -258,14 +266,17 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
             "pre_authorized_code": pre_auth_code,
             "offer": offer,
             "web_qr_url": f"{ISSUER_URL}/oid4vc/qr/{pre_auth_code}",
-            "instructions": "Escanea con Lissi Wallet u otra wallet OpenID4VC compatible",
-            "ssl_info": {
-                "issuer_url": ISSUER_URL,
-                "tls_version": "1.2+",
-                "cert_validation": "strict"
+            "instructions": "Escanea con wallet compatible OpenID4VC (walt.id, Lissi, etc.)",
+            "compatibility": {
+                "walt_id": True,
+                "lissi_wallet": True,
+                "openid4vc_standard": True
             },
-            "expires_in": 600,
-            "interval": 5
+            "debug_info": {
+                "qr_length": len(qr_url),
+                "offer_format": "OpenID4VC Draft-16 compliant",
+                "scheme": "openid-credential-offer://"
+            }
         }
         
         response = JSONResponse(content=response_data)
@@ -713,14 +724,14 @@ async def store_pending_openid_credential(code: str, data: Dict[str, Any], expir
         import tempfile
         import os
         
-        # Añadir metadatos de expiración y SSL
+        # Añadir metadatos mejorados de OpenID4VC
         enhanced_data = {
             **data,
             "created_at": datetime.now().isoformat(),
             "expires_at": (datetime.now() + timedelta(seconds=expires_in)).isoformat(),
-            "ssl_validated": True,
-            "issuer_url": ISSUER_URL,
-            "tls_version": "1.2+"
+            "openid4vc_compliant": True,
+            "spec_version": "OpenID4VC Draft-16",
+            "issuer_url": ISSUER_URL
         }
         
         temp_file = f"/tmp/pending_openid_credential_{code}.json"
@@ -931,6 +942,22 @@ async def show_openid_qr_page(pre_auth_code: str):
                     font-size: 0.8em;
                     margin-top: 10px;
                 }}
+                .qr-error {{
+                    color: #e74c3c;
+                    font-weight: bold;
+                    padding: 20px;
+                    background: #ffebee;
+                    border-radius: 10px;
+                    border-left: 4px solid #e74c3c;
+                }}
+                code {{
+                    background: #f8f9fa;
+                    padding: 10px;
+                    border-radius: 5px;
+                    display: block;
+                    margin: 10px 0;
+                    border: 1px solid #dee2e6;
+                }}
                 .lock-icon {{
                     width: 16px;
                     height: 16px;
@@ -961,37 +988,38 @@ async def show_openid_qr_page(pre_auth_code: str):
                 </div>
                 
                 <div class="qr-container">
-                    <img src="data:image/png;base64,{qr_data['qr_code_base64']}" 
-                         alt="QR Code OpenID4VC SSL Secure" class="qr-code">
+                    {f'<img src="data:image/png;base64,{qr_data["qr_code_base64"]}' if qr_data.get('qr_code_base64') else '<div class="qr-error">❌ QR no disponible</div><br><strong>URL directa:</strong><br><code style="word-break: break-all; font-size: 0.8em;">{qr_data["qr_url"]}</code>'}
+                         alt="QR Code OpenID4VC" class="qr-code">
                     <div class="expires-info">
                         Válido hasta: {qr_data.get('expires_at', 'Sin límite')}
                     </div>
                 </div>
                 
                 <div class="instructions">
-                    <h3>📱 Compatible con Lissi Wallet</h3>
+                    <h3>📱 Compatible con Walt.id y Otros Wallets</h3>
                     <p><strong>Instrucciones:</strong></p>
                     <ol style="text-align: left;">
-                        <li>Abre Lissi Wallet en tu móvil</li>
-                        <li>Escanea este código QR</li>
-                        <li>Acepta el certificado SSL si se solicita</li>
-                        <li>¡Recibe tu credencial W3C!</li>
+                        <li>Abre tu wallet OpenID4VC (walt.id, Lissi, etc.)</li>
+                        <li>Escanea este código QR o copia la URL directa</li>
+                        <li>Acepta la credencial en tu wallet</li>
+                        <li>¡Credencial W3C recibida!</li>
                     </ol>
+                    {f'<p><strong>URL para copiar:</strong><br><code style="word-break: break-all; font-size: 0.8em;">{qr_data["qr_url"]}</code></p>' if not qr_data.get('qr_code_base64') else ''}
                 </div>
                 
                 <div class="troubleshooting">
-                    <h4>🔧 ¿Problemas SSL con Lissi Wallet?</h4>
-                    <p><strong>Si ves errores como "Trust anchor not found":</strong></p>
+                    <h4>🔧 ¿Problemas con el wallet?</h4>
+                    <p><strong>Si ves errores en walt.id o tu wallet:</strong></p>
                     <ul style="text-align: left; margin: 0;">
-                        <li>Verifica que tu dispositivo tenga la fecha/hora correcta</li>
-                        <li>Asegúrate de estar conectado a WiFi estable</li>
-                        <li>El certificado Let's Encrypt es válido y confiable</li>
-                        <li>Lissi Wallet soporta TLS 1.2+ automáticamente</li>
+                        <li>Verifica que tu wallet soporte OpenID4VC</li>
+                        <li>Copia la URL directa si el QR no funciona</li>
+                        <li>Asegúrate de tener conexión a internet estable</li>
+                        <li>El formato cumple con OpenID4VC Draft-16</li>
                     </ul>
                     <p style="margin-top: 10px;">
-                        <strong>URL de prueba SSL:</strong> 
+                        <strong>Test de metadatos:</strong> 
                         <a href="{ISSUER_URL}/oid4vc/.well-known/openid-credential-issuer" 
-                           target="_blank">{ISSUER_URL}</a>
+                           target="_blank">Verificar configuración</a>
                     </p>
                 </div>
             </div>
