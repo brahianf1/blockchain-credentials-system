@@ -792,7 +792,7 @@ async def issue_openid_credential(
                     "completion_date": credential_data["completion_date"],
                     "grade": credential_data["grade"],
                     "university": "Tu Universidad",
-                    "credential_type": "UniversityCredential"
+                    "credential_type": "OpenBadgeCredential"
                 },
                 # Metadatos de seguridad SSL
                 "credentialStatus": {
