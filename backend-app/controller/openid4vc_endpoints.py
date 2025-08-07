@@ -14,7 +14,7 @@ from urllib.parse import urlencode
 import ssl
 import asyncio
 
-from fastapi import APIRouter, HTTPException, Header, Request
+from fastapi import APIRouter, HTTPException, Header, Request, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 import httpx
@@ -277,18 +277,77 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
         logger.error(f"❌ Error creando Credential Offer OpenID4VC: {e}")
         raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
 
-# ENDPOINT 3: Token endpoint (OAuth 2.0) - MEJORADO
+# ENDPOINT 3: Token endpoint (OAuth 2.0) - UNIVERSAL COMPATIBILITY 
 @oid4vc_router.post("/token")
-async def token_endpoint(
-    grant_type: str,
-    pre_authorized_code: str,
-    tx_code: Optional[str] = None
-):
+async def token_endpoint(request: Request):
     """
-    Token endpoint para intercambiar pre-authorized code por access token
-    Compatible con validación SSL estricta requerida por Lissi Wallet
+    Token endpoint universal para intercambiar pre-authorized code por access token
+    Cumple OpenID4VC Draft-16 con máxima compatibilidad de wallets
+    Soporta: form data (estándar), query params (walt.id), y JSON body
     """
     try:
+        grant_type = None
+        pre_authorized_code = None
+        tx_code = None
+        
+        # MÉTODO 1: Form Data (estándar OpenID4VC per RFC6749)
+        try:
+            if request.headers.get("content-type", "").startswith("application/x-www-form-urlencoded"):
+                form_data = await request.form()
+                if form_data:
+                    grant_type = form_data.get("grant_type")
+                    pre_authorized_code = form_data.get("pre_authorized_code") 
+                    tx_code = form_data.get("tx_code")
+        except:
+            pass
+        
+        # MÉTODO 2: Query Parameters (walt.id comportamiento observado)
+        if not grant_type or not pre_authorized_code:
+            query_params = dict(request.query_params)
+            if not grant_type:
+                grant_type = query_params.get("grant_type")
+            if not pre_authorized_code:
+                pre_authorized_code = query_params.get("pre_authorized_code")
+            if not tx_code:
+                tx_code = query_params.get("tx_code")
+        
+        # MÉTODO 3: JSON Body (algunos wallets)
+        if not grant_type or not pre_authorized_code:
+            try:
+                if request.headers.get("content-type", "").startswith("application/json"):
+                    json_data = await request.json()
+                    if not grant_type:
+                        grant_type = json_data.get("grant_type")
+                    if not pre_authorized_code:
+                        pre_authorized_code = json_data.get("pre_authorized_code")
+                    if not tx_code:
+                        tx_code = json_data.get("tx_code")
+            except:
+                pass
+        
+        # Validación de parámetros requeridos
+        if not grant_type:
+            raise HTTPException(
+                status_code=422,
+                detail=[{
+                    "type": "missing",
+                    "loc": ["query", "grant_type"],
+                    "msg": "Field required",
+                    "input": None
+                }]
+            )
+        
+        if not pre_authorized_code:
+            raise HTTPException(
+                status_code=422,
+                detail=[{
+                    "type": "missing",
+                    "loc": ["query", "pre_authorized_code"],
+                    "msg": "Field required", 
+                    "input": None
+                }]
+            )
+        
         if grant_type != "urn:ietf:params:oauth:grant-type:pre-authorized_code":
             raise HTTPException(
                 status_code=400, 
@@ -357,6 +416,136 @@ async def token_endpoint(
         raise
     except Exception as e:
         logger.error(f"❌ Error en token endpoint: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail={
+                "error": "server_error",
+                "error_description": f"Error interno del servidor: {str(e)}"
+            }
+        )
+
+# ENDPOINT DEBUG: Para diagnosticar problemas con wallets
+@oid4vc_router.post("/token/debug")
+async def token_debug_endpoint(request: Request):
+    """
+    Endpoint de debug para analizar exactamente qué está enviando el wallet
+    """
+    try:
+        # Obtener información de la request
+        debug_info = {
+            "method": request.method,
+            "url": str(request.url),
+            "headers": dict(request.headers),
+            "query_params": dict(request.query_params),
+        }
+        
+        # Intentar obtener form data
+        try:
+            form_data = await request.form()
+            debug_info["form_data"] = dict(form_data)
+        except Exception as e:
+            debug_info["form_data_error"] = str(e)
+        
+        # Intentar obtener JSON body
+        try:
+            json_data = await request.json()
+            debug_info["json_data"] = json_data
+        except Exception as e:
+            debug_info["json_data_error"] = str(e)
+        
+        logger.info(f"🔍 Debug token request: {debug_info}")
+        
+        return JSONResponse(content={
+            "message": "Debug info capturada",
+            "debug_info": debug_info
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error en debug endpoint: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+# ENDPOINT WALT.ID: Token endpoint específicamente para walt.id wallet
+@oid4vc_router.post("/walt-token")
+async def walt_token_endpoint(
+    grant_type: str = Query(..., description="Grant type (debe ser pre-authorized_code)"),
+    pre_authorized_code: str = Query(..., description="Pre-authorized code"),
+    tx_code: Optional[str] = Query(None, description="Transaction code opcional")
+):
+    """
+    Token endpoint específico para walt.id wallet que envía parámetros como query params
+    Redirige al endpoint principal con los mismos parámetros pero como form data
+    """
+    try:
+        logger.info(f"🟢 Walt.id endpoint recibido - grant_type: {grant_type}, code: {pre_authorized_code[:10]}...")
+        
+        # Validar grant type
+        if grant_type != "urn:ietf:params:oauth:grant-type:pre-authorized_code":
+            raise HTTPException(
+                status_code=400, 
+                detail={
+                    "error": "unsupported_grant_type",
+                    "error_description": "Grant type no soportado. Use 'urn:ietf:params:oauth:grant-type:pre-authorized_code'"
+                }
+            )
+        
+        # Validar pre-authorized code
+        credential_data = await get_pending_openid_credential(pre_authorized_code)
+        if not credential_data:
+            raise HTTPException(
+                status_code=400, 
+                detail={
+                    "error": "invalid_grant",
+                    "error_description": "Pre-authorized code inválido o expirado"
+                }
+            )
+        
+        # Verificar expiración
+        if 'expires_at' in credential_data:
+            expires_at = datetime.fromisoformat(credential_data['expires_at'].replace('Z', ''))
+            if datetime.now() > expires_at:
+                await clear_pending_openid_credential(pre_authorized_code)
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": "invalid_grant", 
+                        "error_description": "Pre-authorized code expirado"
+                    }
+                )
+        
+        # Generar access token
+        now = datetime.now()
+        access_token_payload = {
+            "sub": credential_data["student_id"],
+            "iss": ISSUER_URL,
+            "aud": ISSUER_URL,
+            "iat": int(now.timestamp()),
+            "exp": int((now + timedelta(minutes=10)).timestamp()),
+            "pre_auth_code": pre_authorized_code,
+            "token_type": "Bearer",
+            "scope": "credential_issuance",
+            "cnf": {
+                "jkt": "utnpf-ssl-key-2025"
+            }
+        }
+        
+        access_token = jwt.encode(access_token_payload, PRIVATE_KEY, algorithm="ES256")
+        
+        response_data = {
+            "access_token": access_token,
+            "token_type": "Bearer",
+            "expires_in": 600,
+            "scope": "credential_issuance"
+        }
+        
+        logger.info(f"✅ Walt.id access token generado para: {credential_data['student_name']}")
+        
+        response = JSONResponse(content=response_data)
+        return await add_security_headers(response)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error en walt.id token endpoint: {e}")
         raise HTTPException(
             status_code=500, 
             detail={
