@@ -822,8 +822,9 @@ async def issue_openid_credential(
         
         logger.info(f"✅ Credencial OpenID4VC emitida para: {credential_data['student_name']}")
         
+        # Walt.id espera el formato directo según OpenID4VC Draft-16
         response_data = {
-            "credentials": [{"credential": vc_jwt}],
+            "credential": vc_jwt,  # Walt.id espera esto directamente
             "c_nonce": f"nonce_{int(now.timestamp())}",
             "c_nonce_expires_in": 86400  # 24 horas
         }
