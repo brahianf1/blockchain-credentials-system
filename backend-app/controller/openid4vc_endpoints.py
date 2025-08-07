@@ -62,7 +62,7 @@ class OpenIDCredentialRequest(BaseModel):
 class CredentialOfferRequest(BaseModel):
     student_id: str = Field(..., min_length=1, max_length=100, description="Student identification")
     student_name: str = Field(..., min_length=1, max_length=200, description="Student full name")
-    student_email: str = Field(..., regex=r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', description="Student email address")
+    student_email: str = Field(..., pattern=r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', description="Student email address")
     course_name: str = Field(..., min_length=1, max_length=300, description="Course name")
     completion_date: str = Field(..., description="Course completion date")
     grade: str = Field(..., min_length=1, max_length=10, description="Final grade")
