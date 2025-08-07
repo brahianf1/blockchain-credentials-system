@@ -96,23 +96,16 @@ async def credential_issuer_metadata(request: Request):
         "token_endpoint": f"{ISSUER_URL}/oid4vc/token",
         "authorization_servers": [ISSUER_URL],
         
-        # Configuraciones de seguridad para Lissi Wallet
-        "jwks_uri": f"{ISSUER_URL}/oid4vc/.well-known/jwks.json",
-        "issuer": ISSUER_URL,
-        "response_types_supported": ["id_token", "vp_token"],
-        "subject_types_supported": ["public"],
-        "id_token_signing_alg_values_supported": ["ES256"],
-        
-        # Protocolos TLS soportados (información para debugging)
-        "tls_client_certificate_bound_access_tokens": True,
-        "require_request_uri_registration": False,
-        
         "credential_configurations_supported": {
             "UniversityCredential": {
                 "format": "jwt_vc_json",
                 "cryptographic_binding_methods_supported": ["jwk"],
                 "credential_signing_alg_values_supported": ["ES256"],
-                "proof_types_supported": ["jwt"],
+                "proof_types_supported": {
+                    "jwt": {
+                        "proof_signing_alg_values_supported": ["ES256"]
+                    }
+                },
                 "credential_definition": {
                     "type": ["VerifiableCredential", "UniversityCredential"],
                     "@context": [
@@ -129,21 +122,7 @@ async def credential_issuer_metadata(request: Request):
                         "uri": f"{ISSUER_URL}/assets/university-logo.png",
                         "alt_text": "Universidad Logo"
                     }
-                }],
-                "credential_subject": {
-                    "student_name": {
-                        "display": [{"name": "Nombre del Estudiante", "locale": "es-ES"}]
-                    },
-                    "course_name": {
-                        "display": [{"name": "Curso", "locale": "es-ES"}]
-                    },
-                    "completion_date": {
-                        "display": [{"name": "Fecha de Finalización", "locale": "es-ES"}]
-                    },
-                    "grade": {
-                        "display": [{"name": "Calificación", "locale": "es-ES"}]
-                    }
-                }
+                }]
             }
         }
     }
