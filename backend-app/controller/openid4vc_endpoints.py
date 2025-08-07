@@ -17,6 +17,7 @@ import asyncio
 from fastapi import APIRouter, HTTPException, Header, Request, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
+from typing import Dict, Any, Optional
 import httpx
 import structlog
 
@@ -368,7 +369,7 @@ async def token_endpoint(request: Request):
                 logger.info(f"🔍 Form data recibida: {dict(form_data) if form_data else 'None'}")
                 if form_data:
                     grant_type = form_data.get("grant_type")
-                    # Intentar ambas variaciones del parámetro (estándar con guión y walt.id con guión bajo)
+                    # Walt.id usa "pre-authorized_code" (con guión) según OpenID4VC Draft-16
                     pre_authorized_code = form_data.get("pre-authorized_code") or form_data.get("pre_authorized_code")
                     tx_code = form_data.get("tx_code")
                     logger.info(f"✅ Form data - grant_type: {grant_type}, pre_auth_code: {pre_authorized_code[:10]}... si existe")
@@ -383,10 +384,10 @@ async def token_endpoint(request: Request):
             if not grant_type:
                 grant_type = query_params.get("grant_type")
             if not pre_authorized_code:
-                # walt.id usa "pre_authorized_code" (guión bajo) en query params según documentación
-                pre_auth_underscore = query_params.get("pre_authorized_code")
+                # Walt.id usa "pre-authorized_code" (con guión) según OpenID4VC Draft-16
                 pre_auth_hyphen = query_params.get("pre-authorized_code")
-                pre_authorized_code = pre_auth_underscore or pre_auth_hyphen
+                pre_auth_underscore = query_params.get("pre_authorized_code")
+                pre_authorized_code = pre_auth_hyphen or pre_auth_underscore
                 logger.info(f"🔍 Query params - underscore: {pre_auth_underscore}, hyphen: {pre_auth_hyphen}")
             if not tx_code:
                 tx_code = query_params.get("tx_code")
@@ -401,8 +402,8 @@ async def token_endpoint(request: Request):
                     if not grant_type:
                         grant_type = json_data.get("grant_type")
                     if not pre_authorized_code:
-                        # Intentar ambas variaciones también en JSON
-                        pre_authorized_code = json_data.get("pre_authorized_code") or json_data.get("pre-authorized_code")
+                        # Walt.id usa "pre-authorized_code" (con guión) según OpenID4VC Draft-16
+                        pre_authorized_code = form_data.get("pre-authorized_code") or form_data.get("pre_authorized_code")
                     if not tx_code:
                         tx_code = json_data.get("tx_code")
                     logger.info(f"✅ JSON - grant_type: {grant_type}, pre_auth_code: {pre_authorized_code[:10] if pre_authorized_code else 'None'}...")
@@ -648,14 +649,60 @@ async def walt_token_endpoint(
 # ENDPOINT 4: Credential endpoint - Emisión final MEJORADO
 @oid4vc_router.post("/credential")
 async def issue_openid_credential(
-    credential_configuration_id: str,
-    authorization: str = Header(..., description="Bearer token para autorización")
+    request: Request,
+    authorization: str = Header(..., description="Bearer token para autorización"),
+    credential_configuration_id: Optional[str] = Query(None, description="Credential configuration ID")
 ):
     """
-    Emitir credencial W3C en formato JWT compatible con Lissi
-    Incluye validación SSL estricta y headers de seguridad
+    Emitir credencial W3C en formato JWT compatible con walt.id y otros wallets
+    Soporta: query params, JSON body, y form data para máxima compatibilidad
     """
     try:
+        # PARSING UNIVERSAL DE PARÁMETROS (igual que en token endpoint)
+        logger.info(f"🔍 Credential endpoint llamado - Content-Type: {request.headers.get('content-type', '')}")
+        logger.info(f"🔍 Query params: {dict(request.query_params)}")
+        
+        config_id = credential_configuration_id
+        
+        # MÉTODO 1: JSON Body (walt.id probablemente use esto)
+        try:
+            if request.headers.get("content-type", "").startswith("application/json"):
+                json_data = await request.json()
+                logger.info(f"🔍 JSON data recibida: {json_data}")
+                if not config_id and "credential_configuration_id" in json_data:
+                    config_id = json_data["credential_configuration_id"]
+                elif not config_id and "format" in json_data:
+                    # Algunos wallets envían "format" en lugar de "credential_configuration_id"
+                    config_id = "UniversityCredential"  # Default si no especifican
+        except Exception as e:
+            logger.warning(f"⚠️ Error parseando JSON: {e}")
+            pass
+        
+        # MÉTODO 2: Form Data
+        try:
+            if request.headers.get("content-type", "").startswith("application/x-www-form-urlencoded"):
+                form_data = await request.form()
+                logger.info(f"🔍 Form data recibida: {dict(form_data) if form_data else 'None'}")
+                if not config_id and form_data:
+                    config_id = form_data.get("credential_configuration_id")
+        except Exception as e:
+            logger.warning(f"⚠️ Error parseando form data: {e}")
+            pass
+        
+        # MÉTODO 3: Query Parameters (ya viene del parámetro opcional)
+        if not config_id:
+            query_params = dict(request.query_params)
+            config_id = query_params.get("credential_configuration_id")
+        
+        # Si todavía no tenemos config_id, usar default
+        if not config_id:
+            config_id = "UniversityCredential"
+            logger.info(f"🔧 Usando credential_configuration_id por defecto: {config_id}")
+        
+        logger.info(f"🎯 RESULTADO FINAL PARSING credential endpoint:")
+        logger.info(f"  - credential_configuration_id: {config_id}")
+        logger.info(f"  - authorization header: {'PRESENTE' if authorization else 'FALTANTE'}")
+        
         # Validar formato del header Authorization
         if not authorization.startswith("Bearer "):
             raise HTTPException(
@@ -695,12 +742,12 @@ async def issue_openid_credential(
             )
         
         # Validar configuración de credencial solicitada
-        if credential_configuration_id != "UniversityCredential":
+        if config_id != "UniversityCredential":
             raise HTTPException(
                 status_code=400,
                 detail={
                     "error": "unsupported_credential_type",
-                    "error_description": f"Tipo de credencial no soportado: {credential_configuration_id}"
+                    "error_description": f"Tipo de credencial no soportado: {config_id}"
                 }
             )
         
