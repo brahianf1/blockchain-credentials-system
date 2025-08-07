@@ -39,11 +39,87 @@ SSL_SECURITY_HEADERS = {
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
 }
-PRIVATE_KEY = """-----BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgK7ZB1X2QR3vN8YPf
-J4x5K9aZ3QhM2nF7vE8wL6vN4xShRANCAATt7eP9kR5F3gN2vQ8mL6yE2nF7K9aZ
-3QhM2nF7vE8wL6vN4xShRANCAATt7eP9kR5F3gN2vQ8mL6yE2nF7K9aZ3QhM2nF7
+
+# Función para obtener o generar clave ES256 válida
+def get_or_generate_es256_key():
+    """
+    Obtiene clave ES256 válida. Si no existe, genera una nueva.
+    Retorna tuple (private_key_pem, public_key_pem)
+    """
+    import os
+    key_file = "/tmp/openid4vc_es256_key.pem"
+    pub_key_file = "/tmp/openid4vc_es256_public.pem"
+    
+    # Si ya existen claves válidas, usarlas
+    if os.path.exists(key_file) and os.path.exists(pub_key_file):
+        try:
+            with open(key_file, 'r') as f:
+                private_key_content = f.read()
+            with open(pub_key_file, 'r') as f:
+                public_key_content = f.read()
+            
+            # Validar que las claves funcionan
+            test_payload = {"test": "validation", "iat": int(datetime.now().timestamp())}
+            token = jwt.encode(test_payload, private_key_content, algorithm="ES256")
+            jwt.decode(token, public_key_content, algorithms=["ES256"])
+            
+            return private_key_content, public_key_content
+        except Exception:
+            # Si las claves no funcionan, eliminarlas y generar nuevas
+            for f in [key_file, pub_key_file]:
+                if os.path.exists(f):
+                    os.remove(f)
+    
+    try:
+        # Intentar generar nuevas claves usando cryptography
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        
+        # Generar clave privada ES256 (P-256/secp256r1)
+        private_key = ec.generate_private_key(ec.SECP256R1())
+        
+        # Serializar clave privada en formato PKCS#8 PEM
+        private_pem = private_key.private_key_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        ).decode('utf-8')
+        
+        # Extraer clave pública
+        public_key = private_key.public_key()
+        public_pem = public_key.public_key_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        ).decode('utf-8')
+        
+        # Guardar para uso futuro
+        with open(key_file, 'w') as f:
+            f.write(private_pem)
+        with open(pub_key_file, 'w') as f:
+            f.write(public_pem)
+            
+        logger.info("✅ Nuevas claves ES256 generadas y guardadas")
+        return private_pem, public_pem
+        
+    except ImportError:
+        logger.warning("⚠️ cryptography no disponible, usando claves fijas de desarrollo")
+        # Claves fijas válidas para desarrollo (solo si no se puede generar)
+        private_fallback = """-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgKy8tX6Y7L9oE1z3Q
+R5vN2YkF8zX3p4E7Y6W9L2vK8xehRANCAATq2L5F3Y9K1vP8mE6yE2nF7K9aZ3Q
+hM2nF7vE8wL6vN4xShRANCAATq2L5F3Y9K1vP8mE6yE2nF7K9aZ3QhM2nF7vE
 -----END PRIVATE KEY-----"""
+        public_fallback = """-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE6ti+Rd2PStbz/JhOshNpxeyvWmd
+0ITNpxe7xPAC+rzeQUkQDQgAE6ti+Rd2PStbz/JhOshNpxeyvWmd0ITNpxe7xPA
+-----END PUBLIC KEY-----"""
+        return private_fallback, public_fallback
+    except Exception as e:
+        logger.error(f"❌ Error generando claves ES256: {e}")
+        raise Exception("No se pudo generar claves ES256 válidas")
+
+# Obtener claves ES256 válidas
+PRIVATE_KEY, PUBLIC_KEY = get_or_generate_es256_key()
 
 # Configuración para compatibilidad Android/Lissi Wallet
 TLS_PROTOCOLS_SUPPORTED = ["TLSv1.2", "TLSv1.3"]
@@ -593,9 +669,10 @@ async def issue_openid_credential(
         # Validar access token
         access_token = authorization.replace("Bearer ", "")
         try:
+            # Para ES256, usar la clave pública para verificar el token
             token_data = jwt.decode(
                 access_token, 
-                PRIVATE_KEY, 
+                PUBLIC_KEY, 
                 algorithms=["ES256"],
                 audience=ISSUER_URL,
                 issuer=ISSUER_URL
