@@ -1,0 +1,6 @@
+[submodule "backend-app/aries-cloudagent-python"]
+    path = backend-app/aries-cloudagent-python
+    url = https://github.com/hyperledger/aries-cloudagent-python.git
+[submodule "fabric-samples"]
+    path = fabric-samples
+    url = https://github.com/hyperledger/fabric-samples.git
