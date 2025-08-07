@@ -276,6 +276,11 @@ async def token_endpoint(request: Request):
     Soporta: form data (estándar), query params (walt.id), y JSON body
     """
     try:
+        # Logging inicial para debug
+        content_type = request.headers.get("content-type", "")
+        logger.info(f"🔍 Token endpoint llamado - Content-Type: {content_type}")
+        logger.info(f"🔍 Query params: {dict(request.query_params)}")
+        
         grant_type = None
         pre_authorized_code = None
         tx_code = None
@@ -284,36 +289,56 @@ async def token_endpoint(request: Request):
         try:
             if request.headers.get("content-type", "").startswith("application/x-www-form-urlencoded"):
                 form_data = await request.form()
+                logger.info(f"🔍 Form data recibida: {dict(form_data) if form_data else 'None'}")
                 if form_data:
                     grant_type = form_data.get("grant_type")
-                    pre_authorized_code = form_data.get("pre_authorized_code") 
+                    # Intentar ambas variaciones del parámetro (estándar con guión y walt.id con guión bajo)
+                    pre_authorized_code = form_data.get("pre-authorized_code") or form_data.get("pre_authorized_code")
                     tx_code = form_data.get("tx_code")
-        except:
+                    logger.info(f"✅ Form data - grant_type: {grant_type}, pre_auth_code: {pre_authorized_code[:10]}... si existe")
+        except Exception as e:
+            logger.warning(f"⚠️ Error parseando form data: {e}")
             pass
         
         # MÉTODO 2: Query Parameters (walt.id comportamiento observado)
         if not grant_type or not pre_authorized_code:
             query_params = dict(request.query_params)
+            logger.info(f"🔍 Intentando query params: {query_params}")
             if not grant_type:
                 grant_type = query_params.get("grant_type")
             if not pre_authorized_code:
-                pre_authorized_code = query_params.get("pre_authorized_code")
+                # walt.id usa "pre_authorized_code" (guión bajo) en query params según documentación
+                pre_auth_underscore = query_params.get("pre_authorized_code")
+                pre_auth_hyphen = query_params.get("pre-authorized_code")
+                pre_authorized_code = pre_auth_underscore or pre_auth_hyphen
+                logger.info(f"🔍 Query params - underscore: {pre_auth_underscore}, hyphen: {pre_auth_hyphen}")
             if not tx_code:
                 tx_code = query_params.get("tx_code")
+            logger.info(f"✅ Query params - grant_type: {grant_type}, pre_auth_code: {pre_authorized_code[:10] if pre_authorized_code else 'None'}...")
         
         # MÉTODO 3: JSON Body (algunos wallets)
         if not grant_type or not pre_authorized_code:
             try:
                 if request.headers.get("content-type", "").startswith("application/json"):
                     json_data = await request.json()
+                    logger.info(f"🔍 JSON data recibida: {json_data}")
                     if not grant_type:
                         grant_type = json_data.get("grant_type")
                     if not pre_authorized_code:
-                        pre_authorized_code = json_data.get("pre_authorized_code")
+                        # Intentar ambas variaciones también en JSON
+                        pre_authorized_code = json_data.get("pre_authorized_code") or json_data.get("pre-authorized_code")
                     if not tx_code:
                         tx_code = json_data.get("tx_code")
-            except:
+                    logger.info(f"✅ JSON - grant_type: {grant_type}, pre_auth_code: {pre_authorized_code[:10] if pre_authorized_code else 'None'}...")
+            except Exception as e:
+                logger.warning(f"⚠️ Error parseando JSON: {e}")
                 pass
+        
+        # Logging resultado final de parsing
+        logger.info(f"🎯 RESULTADO FINAL PARSING:")
+        logger.info(f"  - grant_type: {grant_type}")
+        logger.info(f"  - pre_authorized_code: {'PRESENTE' if pre_authorized_code else 'FALTANTE'}")
+        logger.info(f"  - tx_code: {'PRESENTE' if tx_code else 'FALTANTE'}")
         
         # Validación de parámetros requeridos
         if not grant_type:
@@ -333,7 +358,7 @@ async def token_endpoint(request: Request):
                 detail=[{
                     "type": "missing",
                     "loc": ["query", "pre_authorized_code"],
-                    "msg": "Field required", 
+                    "msg": "Field required (pre_authorized_code or pre-authorized_code)", 
                     "input": None
                 }]
             )
