@@ -285,13 +285,10 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
             qr_gen = QRGenerator()
             qr_code_full = qr_gen.generate_qr(qr_url)
             
-            # Extraer solo el base64
-            if qr_code_full and qr_code_full.startswith("data:image/png;base64,"):
-                qr_code_base64 = qr_code_full.split(",", 1)[1]
-            else:
-                qr_code_base64 = qr_code_full or ""
+            # Usar directamente el resultado completo (ya incluye data:image/png;base64,)
+            qr_code_base64 = qr_code_full if qr_code_full else ""
                 
-            logger.info(f"✅ QR generado exitosamente, longitud: {len(qr_code_base64)} chars")
+            logger.info(f"✅ QR generado exitosamente, formato: {qr_code_base64[:50] if qr_code_base64 else 'Vacío'}...")
             
         except Exception as qr_error:
             logger.error(f"❌ Error generando QR: {qr_error}")
@@ -1117,7 +1114,7 @@ async def show_openid_qr_page(pre_auth_code: str):
                 </div>
                 
                 <div class="qr-container">
-                    {f'<img src="data:image/png;base64,{qr_data["qr_code_base64"]}' if qr_data.get('qr_code_base64') else '<div class="qr-error">❌ QR no disponible</div><br><strong>URL directa:</strong><br><code style="word-break: break-all; font-size: 0.8em;">{qr_data["qr_url"]}</code>'}
+                    {f'<img src="{qr_data["qr_code_base64"]}"' if qr_data.get('qr_code_base64') else '<div class="qr-error">❌ QR no disponible</div><br><strong>URL directa:</strong><br><code style="word-break: break-all; font-size: 0.8em;">{qr_data["qr_url"]}</code>'}
                          alt="QR Code OpenID4VC" class="qr-code">
                     <div class="expires-info">
                         Válido hasta: {qr_data.get('expires_at', 'Sin límite')}
