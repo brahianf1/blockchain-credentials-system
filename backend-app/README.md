@@ -200,6 +200,8 @@ curl -X POST http://localhost:3000/api/credential/request \
 ACAPY_ADMIN_URL=http://acapy-agent:8020
 ACAPY_PUBLIC_URL=http://localhost:8021
 CONTROLLER_PORT=3000
+OPENID_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----..."
+OPENID_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----..."
 
 # ACA-Py Agent
 ACAPY_WALLET_TYPE=askar
@@ -207,6 +209,10 @@ ACAPY_WALLET_NAME=universidad_wallet
 ACAPY_WALLET_KEY=universidad_key_segura
 ACAPY_LOG_LEVEL=INFO
 ```
+
+Las variables `OPENID_PRIVATE_KEY` y `OPENID_PUBLIC_KEY` deben obtenerse de un
+gestor de secretos o variables de entorno seguras y no deben versionarse en el
+repositorio.
 
 ### **Estructura de Archivos**
 

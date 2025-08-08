@@ -43,83 +43,89 @@ SSL_SECURITY_HEADERS = {
 
 # Función para obtener o generar clave ES256 válida
 def get_or_generate_es256_key():
-    """
-    Obtiene clave ES256 válida. Si no existe, genera una nueva.
-    Retorna tuple (private_key_pem, public_key_pem)
+    """Obtiene una clave ES256 válida.
+
+    Las claves pueden proveerse mediante las variables de entorno
+    ``OPENID_PRIVATE_KEY`` y ``OPENID_PUBLIC_KEY``. Si no se encuentran,
+    se genera un nuevo par utilizando ``cryptography`` y se guarda de forma
+    temporal en ``/tmp``.
+
+    Retorna tuple ``(private_key_pem, public_key_pem)``.
     """
     import os
     key_file = "/tmp/openid4vc_es256_key.pem"
     pub_key_file = "/tmp/openid4vc_es256_public.pem"
-    
-    # Si ya existen claves válidas, usarlas
+
+    # Intentar cargar claves desde variables de entorno/secret manager
+    env_private = os.getenv("OPENID_PRIVATE_KEY")
+    env_public = os.getenv("OPENID_PUBLIC_KEY")
+    if env_private and env_public:
+        try:
+            test_payload = {"test": "env", "iat": int(datetime.now().timestamp())}
+            token = jwt.encode(test_payload, env_private, algorithm="ES256")
+            jwt.decode(token, env_public, algorithms=["ES256"])
+            logger.info("✅ Claves ES256 cargadas desde variables de entorno")
+            return env_private, env_public
+        except Exception as e:
+            logger.error(f"❌ Claves ES256 inválidas en variables de entorno: {e}")
+            raise Exception("Claves ES256 inválidas en variables de entorno") from e
+
+    # Si ya existen claves válidas en disco, usarlas
     if os.path.exists(key_file) and os.path.exists(pub_key_file):
         try:
-            with open(key_file, 'r') as f:
+            with open(key_file, "r") as f:
                 private_key_content = f.read()
-            with open(pub_key_file, 'r') as f:
+            with open(pub_key_file, "r") as f:
                 public_key_content = f.read()
-            
-            # Validar que las claves funcionan
+
             test_payload = {"test": "validation", "iat": int(datetime.now().timestamp())}
             token = jwt.encode(test_payload, private_key_content, algorithm="ES256")
             jwt.decode(token, public_key_content, algorithms=["ES256"])
-            
+
             return private_key_content, public_key_content
         except Exception:
-            # Si las claves no funcionan, eliminarlas y generar nuevas
             for f in [key_file, pub_key_file]:
                 if os.path.exists(f):
                     os.remove(f)
-    
+
     try:
-        # Intentar generar nuevas claves usando cryptography
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.primitives.asymmetric import ec
-        
-        # Generar clave privada ES256 (P-256/secp256r1)
+
         private_key = ec.generate_private_key(ec.SECP256R1())
-        
-        # Serializar clave privada en formato PKCS#8 PEM
         private_pem = private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption()
-        ).decode('utf-8')
-        
-        # Extraer clave pública
+            encryption_algorithm=serialization.NoEncryption(),
+        ).decode("utf-8")
+
         public_key = private_key.public_key()
         public_pem = public_key.public_bytes(
             encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-        ).decode('utf-8')
-        
-        # Guardar para uso futuro
-        with open(key_file, 'w') as f:
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        ).decode("utf-8")
+
+        with open(key_file, "w") as f:
             f.write(private_pem)
-        with open(pub_key_file, 'w') as f:
+        with open(pub_key_file, "w") as f:
             f.write(public_pem)
-            
+
         logger.info("✅ Nuevas claves ES256 generadas y guardadas")
         return private_pem, public_pem
-        
-    except ImportError:
-        logger.warning("⚠️ cryptography no disponible, usando claves fijas de desarrollo")
-        # Claves fijas válidas para desarrollo (solo si no se puede generar)
-        private_fallback = """-----BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgKy8tX6Y7L9oE1z3Q
-R5vN2YkF8zX3p4E7Y6W9L2vK8xehRANCAATq2L5F3Y9K1vP8mE6yE2nF7K9aZ3Q
-hM2nF7vE8wL6vN4xShRANCAATq2L5F3Y9K1vP8mE6yE2nF7K9aZ3QhM2nF7vE
------END PRIVATE KEY-----"""
-        public_fallback = """-----BEGIN PUBLIC KEY-----
-MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE6ti+Rd2PStbz/JhOshNpxeyvWmd
-0ITNpxe7xPAC+rzeQUkQDQgAE6ti+Rd2PStbz/JhOshNpxeyvWmd0ITNpxe7xPA
------END PUBLIC KEY-----"""
-        return private_fallback, public_fallback
+
+    except ImportError as e:
+        logger.error(
+            "❌ La librería 'cryptography' es requerida para generar claves ES256. "
+            "Proporcione las claves mediante 'OPENID_PRIVATE_KEY' y 'OPENID_PUBLIC_KEY'."
+        )
+        raise e
     except Exception as e:
         logger.error(f"❌ Error generando claves ES256: {e}")
-        raise Exception("No se pudo generar claves ES256 válidas")
+        raise Exception("No se pudo generar claves ES256 válidas") from e
 
 # Obtener claves ES256 válidas
+# En entornos de producción se recomienda suministrar las claves mediante las
+# variables de entorno ``OPENID_PRIVATE_KEY`` y ``OPENID_PUBLIC_KEY``.
 PRIVATE_KEY, PUBLIC_KEY = get_or_generate_es256_key()
 
 # Configuración para compatibilidad Android/Lissi Wallet
