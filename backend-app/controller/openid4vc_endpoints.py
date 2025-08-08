@@ -47,14 +47,16 @@ def get_or_generate_es256_key():
 
     Las claves pueden proveerse mediante las variables de entorno
     ``OPENID_PRIVATE_KEY`` y ``OPENID_PUBLIC_KEY``. Si no se encuentran,
-    se genera un nuevo par utilizando ``cryptography`` y se guarda de forma
-    temporal en ``/tmp``.
+    se genera un nuevo par utilizando ``cryptography`` y se guarda
+    de forma persistente en ``/var/lib/openid4vc/keys``.
 
     Retorna tuple ``(private_key_pem, public_key_pem)``.
     """
     import os
-    key_file = "/tmp/openid4vc_es256_key.pem"
-    pub_key_file = "/tmp/openid4vc_es256_public.pem"
+    key_dir = "/var/lib/openid4vc/keys"
+    os.makedirs(key_dir, mode=0o700, exist_ok=True)
+    key_file = os.path.join(key_dir, "openid4vc_es256_key.pem")
+    pub_key_file = os.path.join(key_dir, "openid4vc_es256_public.pem")
 
     # Intentar cargar claves desde variables de entorno/secret manager
     env_private = os.getenv("OPENID_PRIVATE_KEY")
@@ -107,8 +109,10 @@ def get_or_generate_es256_key():
 
         with open(key_file, "w") as f:
             f.write(private_pem)
+        os.chmod(key_file, 0o600)
         with open(pub_key_file, "w") as f:
             f.write(public_pem)
+        os.chmod(pub_key_file, 0o600)
 
         logger.info("✅ Nuevas claves ES256 generadas y guardadas")
         return private_pem, public_pem
